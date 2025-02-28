@@ -1,5 +1,6 @@
 """Docker container log monitor implementation."""
 
+import logging
 import os
 import time
 import requests
@@ -28,6 +29,7 @@ class DockerAPIMonitor(Monitor):
         super().__init__(app_name, service_name, poll_interval, extractor)
         self.container_name = container_name
         self.base_url = f"http://{proxy_host}:{proxy_port}"
+        self.logger = logging.getLogger(self.__class__.__name__)
 
         # Setup offset storage
         self.offset_dir = offset_dir

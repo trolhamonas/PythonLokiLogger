@@ -20,11 +20,12 @@ DATA_DIR = os.environ.get("DATA_DIR", "data")
 PYGTAIL_DIR = os.path.join(DATA_DIR, "pygtail")
 DOCKER_DIR = os.path.join(DATA_DIR, "docker")
 
-# Print the paths for debugging
-print(f"Using CONFIG_PATH: {CONFIG_PATH}")
-print(f"Using DATA_DIR: {DATA_DIR}")
-print(f"Using PYGTAIL_DIR: {PYGTAIL_DIR}")
-print(f"Using DOCKER_DIR: {DOCKER_DIR}")
+# Log the paths for debugging
+logger = logging.getLogger("PythonLokiLogger")
+logger.debug(f"Using CONFIG_PATH: {CONFIG_PATH}")
+logger.debug(f"Using DATA_DIR: {DATA_DIR}")
+logger.debug(f"Using PYGTAIL_DIR: {PYGTAIL_DIR}")
+logger.debug(f"Using DOCKER_DIR: {DOCKER_DIR}")
 
 
 def setup_logging(log_level="INFO"):
@@ -39,7 +40,7 @@ def setup_logging(log_level="INFO"):
             handlers=[logging.StreamHandler(), logging.FileHandler(log_file)],
         )
     except Exception as e:
-        print(f"Error setting up file logging: {e}")
+        logging.error(f"Error setting up file logging: {e}")
         # Continue without file logging
         logging.basicConfig(
             level=numeric_level,
@@ -85,7 +86,7 @@ def create_monitor_from_config(config):
 
     monitor_type = config_copy.pop("type", None)
     if not monitor_type:
-        print("Missing monitor type in configuration")
+        logger.error("Missing monitor type in configuration")
         return None
 
     # Extract extractor configuration if present
@@ -103,7 +104,7 @@ def create_monitor_from_config(config):
         config_copy["offset_dir"] = DOCKER_DIR
         return DockerAPIMonitor(**config_copy)
     else:
-        print(f"Unsupported monitor type: {monitor_type}")
+        logger.error(f"Unsupported monitor type: {monitor_type}")
         return None
 
 
@@ -118,19 +119,19 @@ def load_monitors_from_config(config_path):
             monitor = create_monitor_from_config(config)
             if monitor:
                 monitors.append(monitor)
-                print(
+                logger.debug(
                     f"Created monitor: {monitor.__class__.__name__} for {monitor.app_name}/{monitor.service_name}"
                 )
 
         return monitors
     except FileNotFoundError:
-        print(f"Configuration file not found: {config_path}")
+        logger.error(f"Configuration file not found: {config_path}")
         return []
     except json.JSONDecodeError:
-        print(f"Invalid JSON in configuration file: {config_path}")
+        logger.error(f"Invalid JSON in configuration file: {config_path}")
         return []
     except Exception as e:
-        print(f"Error loading configuration: {e}")
+        logger.error(f"Error loading configuration: {e}")
         return []
 
 
@@ -143,10 +144,10 @@ def main():
     config_file = CONFIG_PATH
 
     # Load monitors from configuration
-    print(f"Loading configuration from: {config_file}")
+    logger.info(f"Loading configuration from: {config_file}")
     monitors = load_monitors_from_config(config_file)
     if not monitors:
-        print("No valid monitors configured.")
+        logger.warning("No valid monitors configured.")
         return
 
     # Create and start monitor manager
@@ -155,8 +156,8 @@ def main():
         manager.add_monitor(monitor)
 
     try:
-        print(f"Starting log monitors with config: {config_file}")
-        print(f"Data directory: {DATA_DIR}")
+        logger.info(f"Starting log monitors with config: {config_file}")
+        logger.info(f"Data directory: {DATA_DIR}")
         manager.start_all()
 
         # Main thread loops instead of just waiting indefinitely
@@ -164,10 +165,10 @@ def main():
             time.sleep(0.5)  # Check for interrupts every half second
 
     except KeyboardInterrupt:
-        print("Shutting down monitors...")
+        logger.info("Shutting down monitors...")
         manager.stop_all()
         manager.wait_all(timeout=1.0)  # Give threads 5 seconds to clean up
-        print("Shutdown complete.")
+        logger.info("Shutdown complete.")
 
 
 if __name__ == "__main__":
