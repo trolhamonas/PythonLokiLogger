@@ -13,8 +13,8 @@ from pythonlogloki.monitors.file import FileMonitor
 from pythonlogloki.monitors.docker import DockerAPIMonitor
 
 # Get configuration path from environment variable with fallback
-CONFIG_PATH = os.environ.get("CONFIG_PATH", "/config/monitors.json")
-DATA_DIR = os.environ.get("DATA_DIR", "/config/data")
+CONFIG_PATH = os.environ.get("CONFIG_PATH", "monitors.json")
+DATA_DIR = os.environ.get("DATA_DIR", "data")
 
 # Define paths for offset directories
 PYGTAIL_DIR = os.path.join(DATA_DIR, "pygtail")
@@ -157,7 +157,6 @@ def main():
     try:
         print(f"Starting log monitors with config: {config_file}")
         print(f"Data directory: {DATA_DIR}")
-        print(f"Running as user: {os.getuid()}:{os.getgid()}")
         manager.start_all()
 
         # Main thread loops instead of just waiting indefinitely

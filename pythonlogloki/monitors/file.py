@@ -1,9 +1,8 @@
-"""File-based log monitor implementation."""
+"""File-based log monitor implementation with proper encoding support."""
 
 import os
 import glob
 import time
-import logging
 from typing import Optional
 
 from pygtail import Pygtail
@@ -11,7 +10,6 @@ from pygtail import Pygtail
 from ..models import LogEntry
 from .base import Monitor
 from ..extractors import RegexExtractor
-from ..utils import ensure_dir
 
 
 class FileMonitor(Monitor):
@@ -29,8 +27,6 @@ class FileMonitor(Monitor):
         super().__init__(app_name, service_name, poll_interval, extractor)
         self.folder = folder
         self.offset_dir = offset_dir
-        if self.offset_dir:
-            ensure_dir(self.offset_dir)
 
     def poll_logs(self) -> None:
         """Poll log files and process new lines."""
@@ -51,17 +47,48 @@ class FileMonitor(Monitor):
                 )
 
                 try:
-                    new_lines = Pygtail(file_path, offset_file=offset_file)
+                    # Create Pygtail instance with UTF-8 encoding
+                    new_lines = Pygtail(
+                        file_path,
+                        offset_file=offset_file,
+                        encoding="utf-8",  # Only pass encoding, not errors
+                    )
+
                     for line in new_lines:
                         line = line.strip()
                         if not line:
                             continue
                         entry = LogEntry(line, self.extractor)
                         log_entries.append(entry.to_loki_format())
+
+                except UnicodeDecodeError:
+                    # If UTF-8 fails, try with latin-1 which accepts any byte value
+                    try:
+                        self.logger.warning(
+                            f"UTF-8 decoding failed for {file_path}, trying with latin-1"
+                        )
+                        new_lines = Pygtail(
+                            file_path, offset_file=offset_file, encoding="latin-1"
+                        )
+
+                        for line in new_lines:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            entry = LogEntry(line, self.extractor)
+                            log_entries.append(entry.to_loki_format())
+
+                    except Exception as e:
+                        self.logger.error(
+                            f"Error processing file {file_path} with fallback encoding: {e}",
+                            exc_info=True,
+                        )
+
                 except Exception as e:
                     self.logger.error(
                         f"Error processing file {file_path}: {e}", exc_info=True
                     )
 
-            self.send_logs(log_entries)
+            if log_entries:
+                self.send_logs(log_entries)
             time.sleep(self.poll_interval)
