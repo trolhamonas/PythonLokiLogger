@@ -1,5 +1,8 @@
 FROM python:3.11-alpine
 
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
 # Install required packages
 RUN apk add --no-cache su-exec && \
     pip install --no-cache-dir pygtail requests

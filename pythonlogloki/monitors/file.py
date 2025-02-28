@@ -1,5 +1,4 @@
-"""File-based log monitor implementation with proper encoding support."""
-
+import builtins
 import os
 import glob
 import time
@@ -10,6 +9,29 @@ from pygtail import Pygtail
 from ..models import LogEntry
 from .base import Monitor
 from ..extractors import RegexExtractor
+
+# Monkey-patch built-in open() to default to UTF-8 for text files.
+_original_open = builtins.open
+
+
+def open_utf8(
+    file,
+    mode="r",
+    buffering=-1,
+    encoding=None,
+    errors=None,
+    newline=None,
+    closefd=True,
+    opener=None,
+):
+    if "b" not in mode and encoding is None:
+        encoding = "utf-8"
+    return _original_open(
+        file, mode, buffering, encoding, errors, newline, closefd, opener
+    )
+
+
+builtins.open = open_utf8
 
 
 class FileMonitor(Monitor):
@@ -46,48 +68,13 @@ class FileMonitor(Monitor):
                     else None
                 )
 
-                try:
-                    # Create Pygtail instance with UTF-8 encoding
-                    new_lines = Pygtail(
-                        file_path,
-                        offset_file=offset_file,
-                        encoding="utf-8",  # Only pass encoding, not errors
-                    )
-
-                    for line in new_lines:
-                        line = line.strip()
-                        if not line:
-                            continue
+                # Use Pygtail without specifying encoding; our monkey patch ensures UTF-8.
+                new_lines = Pygtail(file_path, offset_file=offset_file)
+                for line in new_lines:
+                    line = line.strip()
+                    if line:
                         entry = LogEntry(line, self.extractor)
                         log_entries.append(entry.to_loki_format())
-
-                except UnicodeDecodeError:
-                    # If UTF-8 fails, try with latin-1 which accepts any byte value
-                    try:
-                        self.logger.warning(
-                            f"UTF-8 decoding failed for {file_path}, trying with latin-1"
-                        )
-                        new_lines = Pygtail(
-                            file_path, offset_file=offset_file, encoding="latin-1"
-                        )
-
-                        for line in new_lines:
-                            line = line.strip()
-                            if not line:
-                                continue
-                            entry = LogEntry(line, self.extractor)
-                            log_entries.append(entry.to_loki_format())
-
-                    except Exception as e:
-                        self.logger.error(
-                            f"Error processing file {file_path} with fallback encoding: {e}",
-                            exc_info=True,
-                        )
-
-                except Exception as e:
-                    self.logger.error(
-                        f"Error processing file {file_path}: {e}", exc_info=True
-                    )
 
             if log_entries:
                 self.send_logs(log_entries)

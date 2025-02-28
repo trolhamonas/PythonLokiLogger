@@ -166,7 +166,7 @@ def main():
     except KeyboardInterrupt:
         print("Shutting down monitors...")
         manager.stop_all()
-        manager.wait_all(timeout=5.0)  # Give threads 5 seconds to clean up
+        manager.wait_all(timeout=1.0)  # Give threads 5 seconds to clean up
         print("Shutdown complete.")
 
 
