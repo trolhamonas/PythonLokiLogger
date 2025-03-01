@@ -1,0 +1,2 @@
+pygtail~=0.14.0
+requests~=2.32.3
